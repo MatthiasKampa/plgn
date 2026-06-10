@@ -1,0 +1,15 @@
+# Python environment & caches
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Cloned dependency — install via `pip install thrml`
+thrml-src/
+
+# Scratch / diagnostic files
+_diag*.py
+*.output
+
+# OS
+.DS_Store

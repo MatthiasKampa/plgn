@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Extropic Z-1 — TSU Grid Simulator</title>
+<style>
+  :root{
+    --bg:#0b0e16; --panel:#121726; --panel2:#0e1320; --line:#222a3d;
+    --txt:#e6ebf5; --dim:#8b96ad; --acc:#ffb703; --acc2:#3aa0ff;
+    --warm:#ffb703; --cool:#1b6ec2;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);
+    font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif}
+  a{color:var(--acc2)}
+  .wrap{display:grid;grid-template-columns:minmax(420px,1fr) 380px;gap:18px;
+    max-width:1280px;margin:0 auto;padding:20px}
+  header{grid-column:1/-1;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;
+    border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:2px}
+  header h1{font-size:18px;margin:0;letter-spacing:.3px}
+  header .tag{font:11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#0b0e16;
+    background:var(--acc);padding:4px 7px;border-radius:5px;font-weight:700}
+  header .sub{color:var(--dim);font-size:12px}
+  .stage{position:relative;background:#000;border:1px solid var(--line);border-radius:12px;
+    overflow:hidden;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center}
+  .stage canvas{display:block;width:100%;height:100%;image-rendering:pixelated}
+  .badge{position:absolute;top:10px;left:10px;display:flex;gap:8px;align-items:center;
+    background:rgba(8,11,18,.66);backdrop-filter:blur(6px);border:1px solid var(--line);
+    border-radius:8px;padding:6px 10px;font:11px/1 ui-monospace,Menlo,monospace}
+  .dot{width:9px;height:9px;border-radius:50%;background:#444;transition:background .1s}
+  .stats{position:absolute;bottom:10px;left:10px;right:10px;display:flex;gap:14px;flex-wrap:wrap;
+    background:rgba(8,11,18,.66);backdrop-filter:blur(6px);border:1px solid var(--line);
+    border-radius:8px;padding:7px 11px;font:11px/1.3 ui-monospace,Menlo,monospace;color:var(--dim)}
+  .stats b{color:var(--txt);font-weight:600}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 15px;
+    display:flex;flex-direction:column;gap:14px;align-self:start}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+  button{flex:1;min-width:64px;background:var(--panel2);color:var(--txt);border:1px solid var(--line);
+    border-radius:8px;padding:9px 8px;font-size:12px;cursor:pointer;transition:.12s}
+  button:hover{border-color:var(--acc2);color:#fff}
+  button.primary{background:var(--acc);color:#0b0e16;border-color:var(--acc);font-weight:700}
+  button.primary.paused{background:var(--panel2);color:var(--txt);border-color:var(--line);font-weight:400}
+  .group{border:1px solid var(--line);border-radius:10px;padding:11px 12px;display:flex;flex-direction:column;gap:9px}
+  .group > .h{display:flex;justify-content:space-between;align-items:center;font-weight:600;font-size:12px}
+  .group > .h .meta{color:var(--dim);font:10px/1 ui-monospace,Menlo,monospace;font-weight:400}
+  .ctrl{display:grid;grid-template-columns:74px 1fr 52px;gap:9px;align-items:center}
+  .ctrl label{color:var(--dim);font-size:11px}
+  .ctrl output{font:11px/1 ui-monospace,Menlo,monospace;color:var(--txt);text-align:right}
+  input[type=range]{-webkit-appearance:none;appearance:none;height:4px;border-radius:3px;
+    background:var(--line);outline:none;width:100%}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;
+    background:var(--acc);cursor:pointer;border:2px solid #0b0e16}
+  select{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:5px 7px}
+  .stencilWrap{display:flex;gap:12px;align-items:center}
+  #stencil{background:var(--panel2);border:1px solid var(--line);border-radius:10px}
+  .legend{font:10px/1.5 ui-monospace,Menlo,monospace;color:var(--dim)}
+  .legend .sw{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:-1px;margin-right:5px}
+  .note{color:var(--dim);font-size:11px;border-top:1px solid var(--line);padding-top:11px}
+  .hidden{display:none}
+  .warn{background:#2a1212;border:1px solid #5a1f1f;color:#ffb0b0;padding:14px;border-radius:10px}
+  code{font:11px ui-monospace,Menlo,monospace;color:var(--acc)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="tag">Z-1</span>
+    <h1>TSU Grid Simulator</h1>
+    <span class="sub">G₁₂ connectivity (12 + 1) · 2-color block-Gibbs · WebGL2</span>
+  </header>
+
+  <!-- LEFT: simulation -->
+  <div>
+    <div class="stage">
+      <canvas id="gl" width="760" height="760"></canvas>
+      <div class="badge">
+        <span class="dot" id="phaseDot"></span>
+        <span id="phaseTxt">phase A</span>
+      </div>
+      <div class="stats">
+        <span>grid <b id="sGrid">512²</b></span>
+        <span>pbits <b id="sN">262,144</b></span>
+        <span>sweeps/s <b id="sSps">—</b></span>
+        <span>fps <b id="sFps">—</b></span>
+        <span>magnetization ⟨s⟩ <b id="sMag">—</b></span>
+      </div>
+    </div>
+    <div id="glerr" class="warn hidden">WebGL2 is not available in this browser. Try Chrome, or Safari ≥ 15 with WebGL2 enabled.</div>
+  </div>
+
+  <!-- RIGHT: controls -->
+  <div class="panel">
+    <div class="row">
+      <button id="btnPlay" class="primary">⏸ Pause</button>
+      <button id="btnStep">⏭ Step</button>
+      <button id="btnRand">🎲 Randomize</button>
+    </div>
+    <div class="row">
+      <button id="btnUp">▲ all +1</button>
+      <button id="btnDn">▼ all −1</button>
+      <button id="btnReset">↺ Reset params</button>
+    </div>
+
+    <div class="ctrl">
+      <label>β (gain)</label>
+      <input type="range" id="rBeta" min="0" max="2" step="0.01" value="0.50">
+      <output id="oBeta">0.50</output>
+    </div>
+    <div class="ctrl">
+      <label>self-bias h</label>
+      <input type="range" id="rSelf" min="-2" max="2" step="0.02" value="0">
+      <output id="oSelf">0.00</output>
+    </div>
+    <div class="ctrl">
+      <label>fps</label>
+      <input type="range" id="rFps" min="2" max="200" step="1" value="60">
+      <output id="oFps">60</output>
+    </div>
+    <div class="ctrl">
+      <label>sweeps/frame</label>
+      <input type="range" id="rSpeed" min="1" max="30" step="1" value="4">
+      <output id="oSpeed">4</output>
+    </div>
+
+    <!-- shells injected here -->
+    <div id="shells"></div>
+
+    <!-- stencil -->
+    <div class="group">
+      <div class="h"><span>12 + 1 stencil</span><span class="meta">G₁₂ · ±11 window</span></div>
+      <div class="stencilWrap">
+        <canvas id="stencil" width="196" height="196"></canvas>
+        <div class="legend">
+          <div><span class="sw" style="background:#d1495b"></span>J &gt; 0 (align)</div>
+          <div><span class="sw" style="background:#5a6072"></span>J ≈ 0</div>
+          <div><span class="sw" style="background:#2f7dd1"></span>J &lt; 0 (anti)</div>
+          <div style="margin-top:6px">◇ center = self h<br>lines = the 12 bonds<br>arrows = rule bias dir</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="note">
+      Connectivity = Extropic's degree-12 graph <b>G₁₂</b> (arXiv:2510.23972, Table 2):
+      rules <code>(0,1)</code>, <code>(4,1)</code>, <code>(9,10)</code> — a nearest-neighbor bond
+      plus two long-range skew skip-connections, each a 4-fold (C4) orbit. Every offset has
+      odd (dx+dy) parity, so the checkerboard 2-coloring is <b>exact</b>: each half-sweep
+      samples one color given the other (block Gibbs). Each pbit field =
+      <code>h + Σ J·neighbor</code>, <code>P(+1)=σ(2β·field)</code>; toroidal (periodic)
+      boundaries. Space = play/pause, S = step.
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const PI = Math.PI;
+
+// ---- Z-1 degree-12 connectivity "G12" — arXiv:2510.23972v2, Table 2 ----
+// 3 connection rules, each a C4 orbit of 4 offsets (every offset has a+b odd
+// => bipartite under the (x+y) checkerboard colouring).
+const RULES = [
+  {name:"(0,1) · nearest", len:"1",    bonds:[[0,1],[-1,0],[0,-1],[1,0]]},
+  {name:"(4,1) · skew",    len:"√17",  bonds:[[4,1],[-1,4],[-4,-1],[1,-4]]},
+  {name:"(9,10) · skew",   len:"√181", bonds:[[9,10],[-10,9],[-9,-10],[10,-9]]},
+];
+
+const DEFAULTS = {beta:0.50, self:0.0, str:[1.0,0.0,0.0], bias:[0,0,0], ang:[0,0,0], fps:60, speed:4, grid:512};
+const P = JSON.parse(JSON.stringify(DEFAULTS));
+P.running = true;
+
+// =================== WebGL setup ===================
+const canvas = document.getElementById("gl");
+const gl = canvas.getContext("webgl2", {antialias:false, preserveDrawingBuffer:false});
+if(!gl){ document.getElementById("glerr").classList.remove("hidden"); throw new Error("no webgl2"); }
+
+const VERT = `#version 300 es
+void main(){
+  vec2 v = vec2((gl_VertexID<<1)&2, gl_VertexID&2);
+  gl_Position = vec4(v*2.0-1.0, 0.0, 1.0);
+}`;
+
+const UPDATE_FS = `#version 300 es
+precision highp float; precision highp int;
+uniform sampler2D u_state;
+uniform ivec2 u_size;
+uniform int  u_phase;
+uniform uint u_seed;
+uniform float u_beta;
+uniform float u_self;
+uniform vec3 u_str;   // strength per rule  (0,1)/(4,1)/(9,10)
+uniform vec3 u_bias;  // directional-bias magnitude per rule
+uniform vec3 u_ang;   // bias angle per rule (radians)
+out vec4 outColor;
+const float PI = 3.14159265359;
+
+int wrap1(int v,int n){ return (v%n+n)%n; }
+float spinAt(ivec2 p){
+  p = ivec2(wrap1(p.x,u_size.x), wrap1(p.y,u_size.y));
+  return texelFetch(u_state,p,0).r*2.0 - 1.0;
+}
+// one bond: anisotropic weight J = s + b*cos(phi - a), phi = direction of the offset
+float bond(ivec2 p, ivec2 off, float s, float b, float a){
+  float phi = atan(float(off.y), float(off.x));
+  return (s + b*cos(phi - a)) * spinAt(p + off);
+}
+uint hash(uint x){ x^=x>>16; x*=0x7feb352du; x^=x>>15; x*=0x846ca68bu; x^=x>>16; return x; }
+float rnd(ivec2 p, uint s){
+  uint h = hash(uint(p.x)*1973u ^ hash(uint(p.y)*9277u ^ hash(s*26699u+1u)));
+  return float(h & 0x00FFFFFFu)/float(0x01000000u);
+}
+void main(){
+  ivec2 p = ivec2(gl_FragCoord.xy);
+  float cur = texelFetch(u_state,p,0).r;
+  if(((p.x+p.y)&1) != u_phase){ outColor = vec4(cur,0,0,1); return; } // keep other color
+
+  // Z-1 degree-12 graph "G12" — arXiv:2510.23972v2, Table 2: rules (0,1),(4,1),(9,10).
+  // Each rule = a C4 orbit of 4 offsets; every offset has odd (dx+dy) parity, so all 12
+  // neighbours are the opposite checkerboard colour => the 2-colour update is exact Gibbs.
+  float f = u_self;
+  // rule (0,1) — orthogonal nearest neighbours
+  f += bond(p, ivec2(  0,  1), u_str.x, u_bias.x, u_ang.x);
+  f += bond(p, ivec2( -1,  0), u_str.x, u_bias.x, u_ang.x);
+  f += bond(p, ivec2(  0, -1), u_str.x, u_bias.x, u_ang.x);
+  f += bond(p, ivec2(  1,  0), u_str.x, u_bias.x, u_ang.x);
+  // rule (4,1) — long-range skew skip (len √17 ≈ 4.12)
+  f += bond(p, ivec2(  4,  1), u_str.y, u_bias.y, u_ang.y);
+  f += bond(p, ivec2( -1,  4), u_str.y, u_bias.y, u_ang.y);
+  f += bond(p, ivec2( -4, -1), u_str.y, u_bias.y, u_ang.y);
+  f += bond(p, ivec2(  1, -4), u_str.y, u_bias.y, u_ang.y);
+  // rule (9,10) — long-range skew skip (len √181 ≈ 13.45)
+  f += bond(p, ivec2(  9, 10), u_str.z, u_bias.z, u_ang.z);
+  f += bond(p, ivec2(-10,  9), u_str.z, u_bias.z, u_ang.z);
+  f += bond(p, ivec2( -9,-10), u_str.z, u_bias.z, u_ang.z);
+  f += bond(p, ivec2( 10, -9), u_str.z, u_bias.z, u_ang.z);
+
+  float pUp = 1.0/(1.0+exp(-2.0*u_beta*f));
+  float ns  = (rnd(p,u_seed) < pUp) ? 1.0 : 0.0;
+  outColor = vec4(ns,0,0,1);
+}`;
+
+const RENDER_FS = `#version 300 es
+precision highp float;
+uniform sampler2D u_state;
+uniform vec2 u_canvas;
+out vec4 outColor;
+void main(){
+  vec2 uv = gl_FragCoord.xy / u_canvas;
+  float s = texture(u_state, uv).r;            // 0 or 1
+  vec3 cool = vec3(0.043,0.114,0.247);         // -1
+  vec3 warm = vec3(1.000,0.718,0.012);         // +1
+  outColor = vec4(mix(cool,warm,s), 1.0);
+}`;
+
+function sh(type,src){ const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s);
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+function prog(vs,fs){ const p=gl.createProgram(); gl.attachShader(p,sh(gl.VERTEX_SHADER,vs));
+  gl.attachShader(p,sh(gl.FRAGMENT_SHADER,fs)); gl.linkProgram(p);
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); return p; }
+
+const updateProg = prog(VERT, UPDATE_FS);
+const renderProg = prog(VERT, RENDER_FS);
+const U = {
+  state:gl.getUniformLocation(updateProg,"u_state"), size:gl.getUniformLocation(updateProg,"u_size"),
+  phase:gl.getUniformLocation(updateProg,"u_phase"), seed:gl.getUniformLocation(updateProg,"u_seed"),
+  beta:gl.getUniformLocation(updateProg,"u_beta"), self:gl.getUniformLocation(updateProg,"u_self"),
+  str:gl.getUniformLocation(updateProg,"u_str"), bias:gl.getUniformLocation(updateProg,"u_bias"),
+  ang:gl.getUniformLocation(updateProg,"u_ang"),
+};
+const R = {
+  state:gl.getUniformLocation(renderProg,"u_state"), canvas:gl.getUniformLocation(renderProg,"u_canvas"),
+};
+const vao = gl.createVertexArray(); // empty VAO, required in WebGL2
+
+// ---- ping-pong textures / framebuffers ----
+let fbos = [], N = P.grid, seed = 1, cur = 0;
+function makeTarget(n){
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,n,n,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  const fbo = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER,fbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tex,0);
+  return {tex,fbo};
+}
+function seedState(mode){ // mode: 'rand' | 'up' | 'dn'
+  const buf = new Uint8Array(N*N*4);
+  for(let i=0;i<N*N;i++){
+    let v = mode==='up'?255 : mode==='dn'?0 : (Math.random()<0.5?0:255);
+    buf[i*4]=v; buf[i*4+3]=255;
+  }
+  gl.bindTexture(gl.TEXTURE_2D, fbos[cur].tex);
+  gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,N,N,gl.RGBA,gl.UNSIGNED_BYTE,buf);
+}
+function allocGrid(n){
+  N = n;
+  fbos.forEach(t=>{gl.deleteTexture(t.tex);gl.deleteFramebuffer(t.fbo);});
+  fbos = [makeTarget(n), makeTarget(n)];
+  cur = 0;
+  seedState('rand');
+  document.getElementById('sGrid').textContent = n+"²";
+  document.getElementById('sN').textContent = (n*n).toLocaleString();
+}
+allocGrid(P.grid);
+
+// ---- one half-sweep (single color) ----
+function halfSweep(phase){
+  const src = fbos[cur], dst = fbos[cur^1];
+  gl.bindFramebuffer(gl.FRAMEBUFFER, dst.fbo);
+  gl.viewport(0,0,N,N);
+  gl.useProgram(updateProg);
+  gl.bindVertexArray(vao);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, src.tex);
+  gl.uniform1i(U.state,0);
+  gl.uniform2i(U.size,N,N);
+  gl.uniform1i(U.phase,phase);
+  gl.uniform1ui(U.seed, seed>>>0);
+  gl.uniform1f(U.beta,P.beta);
+  gl.uniform1f(U.self,P.self);
+  gl.uniform3f(U.str, P.str[0],P.str[1],P.str[2]);
+  gl.uniform3f(U.bias,P.bias[0],P.bias[1],P.bias[2]);
+  gl.uniform3f(U.ang, P.ang[0]*PI/180,P.ang[1]*PI/180,P.ang[2]*PI/180);
+  gl.drawArrays(gl.TRIANGLES,0,3);
+  cur ^= 1; seed++;
+}
+function fullSweep(){ halfSweep(0); halfSweep(1); }
+
+function render(){
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+  gl.viewport(0,0,canvas.width,canvas.height);
+  gl.useProgram(renderProg);
+  gl.bindVertexArray(vao);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, fbos[cur].tex);
+  gl.uniform1i(R.state,0);
+  gl.uniform2f(R.canvas,canvas.width,canvas.height);
+  gl.drawArrays(gl.TRIANGLES,0,3);
+}
+
+// ---- magnetization readback (throttled) ----
+let magBuf=null;
+function measureMag(){
+  if(!magBuf || magBuf.length!==N*N*4) magBuf = new Uint8Array(N*N*4);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbos[cur].fbo);
+  gl.readPixels(0,0,N,N,gl.RGBA,gl.UNSIGNED_BYTE,magBuf);
+  let up=0; for(let i=0;i<N*N;i++) up += magBuf[i*4]>127?1:0;
+  const m = (up/(N*N))*2-1;
+  document.getElementById('sMag').textContent = (m>=0?'+':'')+m.toFixed(3);
+}
+
+// =================== main loop (fps-paced via time accumulator) ===================
+let frames=0, sweeps=0, lastT=0, lastSweeps=0, lastFrames=0, acc=0, prevT=0;
+const phaseDot=document.getElementById('phaseDot'), phaseTxt=document.getElementById('phaseTxt');
+function loop(t){
+  if(!prevT) prevT=t;
+  const dt = t - prevT; prevT = t;
+  if(P.running){
+    acc += dt;
+    const stepMs = 1000/P.fps;           // one "frame" = P.speed sweeps, P.fps of them per second
+    let steps=0;
+    while(acc >= stepMs && steps<16){    // run as many sim-frames as wall-clock owes us
+      for(let i=0;i<P.speed;i++){ fullSweep(); sweeps++; }
+      acc -= stepMs; steps++;
+    }
+    if(acc > stepMs*4) acc = 0;          // drop backlog (tab was hidden / fps faster than refresh)
+    if(steps>0){
+      phaseTxt.textContent = 'phase '+((sweeps&1)?'B':'A');
+      phaseDot.style.background = (sweeps&1)? 'var(--acc2)' : 'var(--acc)';
+    }
+  } else { acc = 0; }
+  render();
+  frames++;
+  if(P.running && (frames%30===0)) measureMag();
+  if(t-lastT > 500){
+    const dts=(t-lastT)/1000;
+    document.getElementById('sSps').textContent = Math.round((sweeps-lastSweeps)/dts);
+    document.getElementById('sFps').textContent = Math.round((frames-lastFrames)/dts);
+    lastT=t; lastSweeps=sweeps; lastFrames=frames;
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// =================== stencil inset ===================
+const stc = document.getElementById('stencil'), sx = stc.getContext('2d');
+function Jval(rule, dx, dy){ // anisotropic weight for an offset, phi = atan2(dy,dx)
+  return P.str[rule] + P.bias[rule]*Math.cos(Math.atan2(dy,dx) - P.ang[rule]*PI/180);
+}
+function divColor(v){ // v already normalized ~[-1,1]
+  v=Math.max(-1,Math.min(1,v));
+  const g=[90,96,114];
+  if(v>=0){ const a=[209,73,91];  return `rgb(${Math.round(g[0]+(a[0]-g[0])*v)},${Math.round(g[1]+(a[1]-g[1])*v)},${Math.round(g[2]+(a[2]-g[2])*v)})`; }
+  const t=-v, b=[47,125,209];     return `rgb(${Math.round(g[0]+(b[0]-g[0])*t)},${Math.round(g[1]+(b[1]-g[1])*t)},${Math.round(g[2]+(b[2]-g[2])*t)})`;
+}
+function drawStencil(){
+  const W=stc.width, R=11, cell=W/(2*R+1), cx=W/2, cy=W/2; // ±11 window, center cell
+  sx.clearRect(0,0,W,W);
+  sx.fillStyle='#0e1320'; sx.fillRect(0,0,W,W);
+  // faint axes through center
+  sx.strokeStyle='rgba(255,255,255,.07)'; sx.lineWidth=1;
+  sx.beginPath(); sx.moveTo(cx,0); sx.lineTo(cx,W); sx.moveTo(0,cy); sx.lineTo(W,cy); sx.stroke();
+  const toPx=(dx,dy)=>[ cx+dx*cell, cy-dy*cell ]; // dy points up
+  // connector line + marker for each of the 12 bonds
+  RULES.forEach((r,ri)=>r.bonds.forEach(([dx,dy])=>{
+    const J=Jval(ri,dx,dy), [X,Y]=toPx(dx,dy), col=divColor(J/2.0);
+    sx.strokeStyle=col; sx.lineWidth=Math.max(0.6, Math.min(3.2, Math.abs(J)*1.5));
+    sx.beginPath(); sx.moveTo(cx,cy); sx.lineTo(X,Y); sx.stroke();
+    const sz=Math.max(5, cell*0.85);
+    sx.fillStyle=col; sx.fillRect(X-sz/2, Y-sz/2, sz, sz);
+  }));
+  // center self (diamond)
+  sx.save(); sx.translate(cx,cy); sx.rotate(PI/4);
+  const cs=Math.max(7, cell*1.0); sx.fillStyle=divColor(P.self/2.0); sx.fillRect(-cs/2,-cs/2,cs,cs); sx.restore();
+  sx.fillStyle='#fff'; sx.font='9px Menlo,monospace'; sx.textAlign='center'; sx.textBaseline='middle'; sx.fillText('h', cx, cy);
+  // per-rule bias-direction arrows
+  const cols=['#ffd166','#06d6a0','#4cc9f0'];
+  RULES.forEach((r,ri)=>{
+    const mag=P.bias[ri]; if(mag<0.02) return;
+    const a=P.ang[ri]*PI/180, L=Math.min(mag,1.5)*34;
+    const ex=cx+Math.cos(a)*L, ey=cy-Math.sin(a)*L;
+    sx.strokeStyle=cols[ri]; sx.fillStyle=cols[ri]; sx.lineWidth=2;
+    sx.beginPath(); sx.moveTo(cx,cy); sx.lineTo(ex,ey); sx.stroke();
+    sx.beginPath(); sx.arc(ex,ey,2.8,0,2*PI); sx.fill();
+  });
+}
+
+// =================== controls ===================
+function bindRange(id,outId,onChange,fmt){
+  const r=document.getElementById(id),o=document.getElementById(outId);
+  const upd=()=>{ const v=parseFloat(r.value); o.textContent=fmt?fmt(v):v; onChange(v); };
+  r.addEventListener('input',upd); upd();
+}
+function syncRange(id,outId,val,fmt){
+  const r=document.getElementById(id),o=document.getElementById(outId);
+  r.value=val; o.textContent=fmt?fmt(val):val;
+}
+
+// build rule control groups
+const shellsEl=document.getElementById('shells');
+RULES.forEach((r,si)=>{
+  const g=document.createElement('div'); g.className='group';
+  g.innerHTML=`
+    <div class="h"><span>Rule ${si+1} — ${r.name}</span><span class="meta">4 bonds · len ${r.len}</span></div>
+    <div class="ctrl"><label>strength J</label><input type="range" id="str${si}" min="-1.5" max="1.5" step="0.02" value="${P.str[si]}"><output id="ostr${si}"></output></div>
+    <div class="ctrl"><label>dir bias</label><input type="range" id="bias${si}" min="0" max="1.5" step="0.02" value="${P.bias[si]}"><output id="obias${si}"></output></div>
+    <div class="ctrl"><label>angle°</label><input type="range" id="ang${si}" min="0" max="360" step="1" value="${P.ang[si]}"><output id="oang${si}"></output></div>`;
+  shellsEl.appendChild(g);
+});
+RULES.forEach((r,si)=>{
+  bindRange(`str${si}`,`ostr${si}`,v=>{P.str[si]=v;drawStencil();},v=>v.toFixed(2));
+  bindRange(`bias${si}`,`obias${si}`,v=>{P.bias[si]=v;drawStencil();},v=>v.toFixed(2));
+  bindRange(`ang${si}`,`oang${si}`,v=>{P.ang[si]=v;drawStencil();},v=>v+'°');
+});
+
+bindRange('rBeta','oBeta',v=>P.beta=v,v=>v.toFixed(2));
+bindRange('rSelf','oSelf',v=>{P.self=v;drawStencil();},v=>v.toFixed(2));
+bindRange('rFps','oFps',v=>P.fps=v,v=>String(v));
+bindRange('rSpeed','oSpeed',v=>P.speed=v,v=>String(v));
+
+// buttons
+const btnPlay=document.getElementById('btnPlay');
+function setRunning(r){ P.running=r; btnPlay.textContent=r?'⏸ Pause':'▶ Play'; btnPlay.classList.toggle('paused',!r); }
+btnPlay.addEventListener('click',()=>setRunning(!P.running));
+document.getElementById('btnStep').addEventListener('click',()=>{ setRunning(false); fullSweep(); sweeps++; render(); measureMag(); });
+document.getElementById('btnRand').addEventListener('click',()=>{ seedState('rand'); render(); });
+document.getElementById('btnUp').addEventListener('click',()=>{ seedState('up'); render(); });
+document.getElementById('btnDn').addEventListener('click',()=>{ seedState('dn'); render(); });
+document.getElementById('btnReset').addEventListener('click',()=>{
+  Object.assign(P,JSON.parse(JSON.stringify(DEFAULTS)));
+  syncRange('rBeta','oBeta',P.beta,v=>v.toFixed(2));
+  syncRange('rSelf','oSelf',P.self,v=>v.toFixed(2));
+  syncRange('rFps','oFps',P.fps,v=>String(v));
+  syncRange('rSpeed','oSpeed',P.speed,v=>String(v));
+  RULES.forEach((r,si)=>{
+    syncRange(`str${si}`,`ostr${si}`,P.str[si],v=>v.toFixed(2));
+    syncRange(`bias${si}`,`obias${si}`,P.bias[si],v=>v.toFixed(2));
+    syncRange(`ang${si}`,`oang${si}`,P.ang[si],v=>v+'°');
+  });
+  drawStencil();
+});
+
+window.addEventListener('keydown',e=>{
+  if(e.code==='Space'){ e.preventDefault(); setRunning(!P.running); }
+  else if(e.key==='s'||e.key==='S'){ setRunning(false); fullSweep(); sweeps++; render(); measureMag(); }
+});
+
+drawStencil();
+</script>
+</body>
+</html>
