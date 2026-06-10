@@ -4,14 +4,16 @@
 
 ## The vision — FPGA logic + probabilistic computing, in synergy
 
-The goal isn't one magic fabric — it's a **synergy between two complementary kinds of hardware**: conventional **FPGA logic** for high-throughput deterministic compute, and Extropic's **probabilistic chip (TSU)** for native sampling and inference. As **Guillaume Verdon** (Extropic) frames the trajectory:
+The goal isn't one magic fabric — it's a **synergy between two complementary kinds of hardware**: conventional **FPGA logic** for high-throughput deterministic compute, and Extropic's **probabilistic chip (TSU)** for native sampling and inference.
 
-1. **Today** — pair a standard **neural network with probabilistic computing**: the TSU does the sampling-heavy inference, a conventional net does the rest.
-2. **Next** — move those **auxiliary networks onto FPGAs** (cheaper, higher-throughput, deployable beside the chip).
-3. **Then** — turn those FPGA networks into **Logic Gate Networks (LGNs)** for **maximum throughput** — logic gates are exactly what FPGAs are made of.
-4. **Then** — **train the combined FPGA + probabilistic system on the hardware itself**, end to end.
+**Starting point (Guillaume Verdon, Extropic):** *today* it already makes sense to **pair standard neural networks with probabilistic computing** — the TSU does the sampling-heavy inference, a conventional net does the rest.
 
-**This repo takes the first step on that path.** It builds the missing bridge between *logic gates* and the *probabilistic substrate*: a logic gate is a **cheap energy-based model** (~9 nodes, parity the ceiling), and such a gate can be **trained and run by the probabilistic chip's own sampling — in place, with no off-chip backprop**. On-hardware, sampling-based learning of logic is precisely the seed of step 4 — co-training an FPGA-side LGN together with the probabilistic system, on the hardware.
+**The trajectory we chart from there:**
+1. move those **auxiliary networks onto FPGAs** (cheaper, higher-throughput, deployable beside the chip);
+2. turn those FPGA networks into **Logic Gate Networks (LGNs)** for **maximum throughput** — logic gates are exactly what FPGAs are made of;
+3. **train the combined FPGA + probabilistic system on the hardware itself**, end to end.
+
+**This repo takes the first step on that path.** It builds the missing bridge between *logic gates* and the *probabilistic substrate*: a logic gate is a **cheap energy-based model** (~9 nodes, parity the ceiling), and such a gate can be **trained and run by the probabilistic chip's own sampling — in place, with no off-chip backprop**. On-hardware, sampling-based learning of logic is precisely the seed of the **final step** — co-training an FPGA-side LGN together with the probabilistic system, on the hardware.
 
 What we validate here:
 1. a **logic gate is a cheap EBM** — any 4-input gate in ~9 nodes (*How many nodes*, below);
