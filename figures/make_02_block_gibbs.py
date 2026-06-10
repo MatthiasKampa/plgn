@@ -108,7 +108,7 @@ def main():
     _, cool_cells = draw_board(axC, "cool")
     mark_sampling(axC, cool_cells)
     axC.set_title("(c) Phase B: update " + r"$\circ$" +
-                  " given " + r"$\bullet$",
+                  "\ngiven " + r"$\bullet$",
                   fontsize=11, fontweight="bold", pad=8)
 
     # legend mapping bullet/circle to colours (figure-level, top)
